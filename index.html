@@ -417,6 +417,37 @@
       pointer-events: none;
     }
 
+    #zoom-controls {
+      position: absolute;
+      bottom: 56px;
+      right: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      z-index: 10;
+    }
+
+    #zoom-controls button {
+      width: 34px;
+      height: 34px;
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text-dim);
+      font-size: 16px;
+      cursor: pointer;
+      transition: all 0.15s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-body);
+    }
+    #zoom-controls button:hover {
+      border-color: rgba(255,255,255,0.2);
+      color: var(--text);
+      background: rgba(255,255,255,0.06);
+    }
+
     #score-legend {
       position: absolute;
       bottom: 20px;
@@ -562,6 +593,12 @@
   </div>
 </div>
 
+<div id="zoom-controls">
+  <button id="zoom-in">+</button>
+  <button id="zoom-reset">⌂</button>
+  <button id="zoom-out">−</button>
+</div>
+
 <div id="score-legend">
   <div class="dot-sm"></div>
   <span>lage prioriteit</span>
@@ -669,6 +706,38 @@ function saveTasks() {
   localStorage.setItem('todo-bubbles', JSON.stringify(tasks));
 }
 
+// ── LINKS (related tasks) ────────────────────────────────────────────────────
+const TASK_LINKS = [
+  // TalentKompas / TKO cluster
+  [15, 16], [15, 17], [15, 18], [16, 17], [18, 20], [20, 15],
+  // Natascha Liquid Beauty cluster
+  [10, 11], [11, 12], [10, 12],
+  // Dean cluster
+  [13, 14], [13, 12],
+  // Green Clean cluster
+  [31, 32],
+  // Flin cluster
+  [33, 34], [34, 35], [35, 36], [33, 35],
+  // Zaid cluster
+  [4, 5],
+  // CHB cluster
+  [1, 2], [2, 3], [1, 51], [51, 52],
+  // OKI cluster (AFNI)
+  [54, 55], [55, 56], [56, 57], [54, 56],
+  // SEMPOL cluster
+  [58, 59],
+  // Rowdie cluster
+  [71, 72],
+  // TikTok cluster
+  [41, 42],
+  // VVE cluster
+  [47, 48],
+  // CRM / lead gen / outbound
+  [24, 30], [30, 27],
+  // Ads chain
+  [22, 28], [28, 29],
+];
+
 // ── SCORING ───────────────────────────────────────────────────────────────────
 function scoreTask(t) {
   const base = (t.priority * t.impact) / t.effort;
@@ -688,9 +757,10 @@ function radiusFromScore(score) {
 }
 
 // ── CHART ─────────────────────────────────────────────────────────────────────
-let simulation, svg, g, node;
+let simulation, svg, g, linkG, node, linkSel;
 let currentFilter = 'all';
 let highlightId = null;
+let zoomTransform = d3.zoomIdentity;
 
 const tooltip = document.getElementById('tooltip');
 
@@ -701,32 +771,63 @@ function getFilteredTasks() {
 
 function initChart() {
   svg = d3.select('#chart');
-  g = svg.append('g').attr('class', 'bubbles');
 
-  // Subtle stars background
-  const starsG = svg.append('g').attr('class', 'stars').lower();
-  for (let i = 0; i < 120; i++) {
-    const w = window.innerWidth, h = window.innerHeight;
+  // Zoom container wrapping everything
+  const zoomG = svg.append('g').attr('class', 'zoom-container');
+
+  // Stars background (inside zoom so they move too)
+  const starsG = zoomG.append('g').attr('class', 'stars');
+  for (let i = 0; i < 200; i++) {
+    const w = window.innerWidth * 3, h = window.innerHeight * 3;
     const sz = Math.random() * 1.5;
     starsG.append('circle')
-      .attr('cx', Math.random() * w)
-      .attr('cy', Math.random() * h)
+      .attr('cx', Math.random() * w - w/3)
+      .attr('cy', Math.random() * h - h/3)
       .attr('r', sz)
       .attr('fill', `rgba(255,255,255,${Math.random() * 0.4 + 0.1})`);
   }
 
+  // Links layer (behind nodes)
+  linkG = zoomG.append('g').attr('class', 'links');
+
+  // Nodes layer
+  g = zoomG.append('g').attr('class', 'bubbles');
+
+  // Zoom behavior
+  const zoom = d3.zoom()
+    .scaleExtent([0.1, 5])
+    .on('zoom', (event) => {
+      zoomTransform = event.transform;
+      zoomG.attr('transform', event.transform);
+    });
+
+  svg.call(zoom);
+  svg.on('dblclick.zoom', null); // disable double-click zoom
+
+  // Zoom buttons
+  document.getElementById('zoom-in').addEventListener('click', () => {
+    svg.transition().duration(300).call(zoom.scaleBy, 1.4);
+  });
+  document.getElementById('zoom-out').addEventListener('click', () => {
+    svg.transition().duration(300).call(zoom.scaleBy, 0.7);
+  });
+  document.getElementById('zoom-reset').addEventListener('click', () => {
+    svg.transition().duration(400).call(zoom.transform, d3.zoomIdentity);
+  });
+
   simulation = d3.forceSimulation()
     .force('charge', d3.forceManyBody().strength(d => -radiusFromScore(scoreTask(d)) * 2.5))
-    .force('collide', d3.forceCollide().radius(d => radiusFromScore(scoreTask(d)) + 6))
+    .force('collide', d3.forceCollide().radius(d => radiusFromScore(scoreTask(d)) + 8))
+    .force('link', d3.forceLink().id(d => d.id).distance(120).strength(0.3))
     .force('x', d3.forceX(window.innerWidth / 2).strength(d => {
       const s = scoreTask(d);
-      return 0.04 + s * 0.006;
+      return 0.03 + s * 0.005;
     }))
     .force('y', d3.forceY(window.innerHeight / 2).strength(d => {
       const s = scoreTask(d);
-      return 0.04 + s * 0.006;
+      return 0.03 + s * 0.005;
     }))
-    .alphaDecay(0.02)
+    .alphaDecay(0.018)
     .velocityDecay(0.4);
 
   renderBubbles();
@@ -764,7 +865,7 @@ function renderBubbles() {
     .on('mouseover', showTooltip)
     .on('mousemove', moveTooltip)
     .on('mouseout', hideTooltip)
-    .on('click', completeTask);
+    .on('click', (event, d) => { event.stopPropagation(); completeTask(event, d); });
 
   enter.append('circle')
     .attr('class', 'glow-outer')
@@ -821,16 +922,39 @@ function renderBubbles() {
 
   node = g.selectAll('.bubble-group');
 
+  // Build active links for current filtered data
+  const activeIds = new Set(data.map(d => d.id));
+  const activeLinks = TASK_LINKS
+    .filter(([s, t]) => activeIds.has(s) && activeIds.has(t))
+    .map(([s, t]) => ({ source: s, target: t }));
+
+  // Render link lines
+  linkSel = linkG.selectAll('.link').data(activeLinks);
+  linkSel.exit().remove();
+  linkSel = linkSel.enter().append('line')
+    .attr('class', 'link')
+    .attr('stroke', 'rgba(255,255,255,0.12)')
+    .attr('stroke-width', 1)
+    .attr('stroke-dasharray', '4 4')
+    .merge(linkSel);
+
   simulation.nodes(data);
+  simulation.force('link').links(activeLinks);
   simulation.on('tick', () => {
     node.attr('transform', d => `translate(${d.x},${d.y})`);
+    if (linkSel) {
+      linkSel
+        .attr('x1', d => d.source.x)
+        .attr('y1', d => d.source.y)
+        .attr('x2', d => d.target.x)
+        .attr('y2', d => d.target.y);
+    }
   });
   simulation.alpha(0.4).restart();
 }
 
 // ── INTERACTIONS ──────────────────────────────────────────────────────────────
 function completeTask(event, d) {
-  event.stopPropagation();
   hideTooltip();
 
   d3.select(this).classed('completing', true);
