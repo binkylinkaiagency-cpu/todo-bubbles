@@ -627,6 +627,10 @@
         <div class="g-level">Level <span id="g-level-num">1</span> — <span id="g-level-name">Starter</span></div>
         <div class="g-xp-bar"><div class="g-xp-fill" id="g-xp-fill" style="width:0%"></div></div>
         <div class="g-xp-text"><span id="g-xp">0</span> XP — <span id="g-completed">0</span> taken gedaan</div>
+        <div class="g-streak" id="g-streak-bar" style="margin-top:6px; font-size:11px; color:var(--text-dim);">
+          🔥 <span id="g-streak">0</span> dag streak &nbsp;·&nbsp; vandaag <span id="g-today-xp">0</span>/100 XP
+        </div>
+        <div class="g-xp-bar" style="margin-top:4px;"><div id="g-daily-fill" style="height:100%;background:linear-gradient(90deg,#f59e0b,#ef4444);border-radius:2px;transition:width 0.4s;width:0%"></div></div>
       </div>
       <button id="what-next-btn" onclick="whatNext()">⚡ Wat nu doen?</button>
       <button id="add-btn" onclick="openModal()">+ Taak toevoegen</button>
@@ -830,7 +834,41 @@ const LEVELS = [
   { min: 1000, name: 'Legend',    next: 9999 },
 ];
 
-let gameState = JSON.parse(localStorage.getItem('todo-game') || 'null') || { xp: 0, completed: 0 };
+const DAILY_XP_GOAL = 100;
+let gameState = JSON.parse(localStorage.getItem('todo-game') || 'null') || { xp: 0, completed: 0, streak: 0, lastStreakDate: null, todayXP: 0, todayDate: null };
+
+function todayStr() { return new Date().toISOString().slice(0, 10); }
+
+function updateStreak(ptsEarned) {
+  const today = todayStr();
+  // Reset daily XP if it's a new day
+  if (gameState.todayDate !== today) {
+    // Check if yesterday's goal was hit (keep streak) or missed (reset)
+    if (gameState.todayDate) {
+      const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+      if (gameState.todayDate !== yesterday || gameState.todayXP < DAILY_XP_GOAL) {
+        gameState.streak = 0;
+      }
+    }
+    gameState.todayXP = 0;
+    gameState.todayDate = today;
+  }
+  gameState.todayXP += ptsEarned;
+  // Award streak day when goal is hit for the first time today
+  if (gameState.todayXP >= DAILY_XP_GOAL && (gameState.todayXP - ptsEarned) < DAILY_XP_GOAL) {
+    gameState.streak += 1;
+    gameState.lastStreakDate = today;
+    showStreakCelebration(gameState.streak);
+  }
+}
+
+function showStreakCelebration(streak) {
+  const el = document.createElement('div');
+  el.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);font-family:var(--font-head);font-size:32px;font-weight:800;color:#f59e0b;text-shadow:0 0 40px rgba(245,158,11,0.9);z-index:999;pointer-events:none;animation:points-fly 2s ease-out forwards;text-align:center;';
+  el.innerHTML = `🔥 ${streak} dag streak!<br><span style="font-size:16px">100 XP gehaald!</span>`;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 2100);
+}
 
 function saveGame() { localStorage.setItem('todo-game', JSON.stringify(gameState)); }
 
@@ -841,14 +879,17 @@ function getLevel(xp) {
   return { level: 1, ...LEVELS[0] };
 }
 
+const MAX_TASK_XP = 33;
+
 function taskPoints(task) {
-  return Math.max(5, Math.round((task.priority * task.impact / task.effort) * 10));
+  return Math.min(MAX_TASK_XP, Math.max(5, Math.round((task.priority * task.impact / task.effort) * 10)));
 }
 
 function awardPoints(task, x, y) {
   const pts = taskPoints(task);
   gameState.xp += pts;
   gameState.completed += 1;
+  updateStreak(pts);
   saveGame();
   updateGameUI();
 
@@ -870,6 +911,13 @@ function updateGameUI() {
   document.getElementById('g-xp-fill').style.width = pct + '%';
   document.getElementById('g-xp').textContent = gameState.xp;
   document.getElementById('g-completed').textContent = gameState.completed;
+
+  // Streak + daily progress
+  const todayXP = gameState.todayDate === todayStr() ? (gameState.todayXP || 0) : 0;
+  const dailyPct = Math.min(100, (todayXP / DAILY_XP_GOAL) * 100);
+  document.getElementById('g-streak').textContent = gameState.streak || 0;
+  document.getElementById('g-today-xp').textContent = todayXP;
+  document.getElementById('g-daily-fill').style.width = dailyPct + '%';
 }
 
 // ── LINKS (related tasks) ────────────────────────────────────────────────────
