@@ -307,6 +307,19 @@
       font-size: 11px;
       color: var(--text-dim);
     }
+    #tooltip .t-action button {
+      background: #22c55e;
+      color: #000;
+      border: none;
+      border-radius: 6px;
+      padding: 6px 14px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      width: 100%;
+    }
+    #tooltip .t-action button:hover { background: #16a34a; }
+    #tooltip.pinned { pointer-events: all; }
 
     /* MODAL */
     #modal-overlay {
@@ -629,7 +642,7 @@
   <div class="t-row"><span>ROI score</span><span id="t-score"></span></div>
   <div id="t-deadline-row" class="t-row" style="display:none"><span>Deadline</span><span id="t-deadline"></span></div>
   <div><span class="t-cat" id="t-cat"></span></div>
-  <div class="t-action">Klik om af te vinken ✓</div>
+  <div class="t-action"><button id="t-complete-btn" onclick="confirmComplete()">✓ Afvinken</button></div>
 </div>
 
 <!-- Add Task Modal -->
@@ -1024,7 +1037,7 @@ function renderBubbles() {
     .on('mouseover', showTooltip)
     .on('mousemove', moveTooltip)
     .on('mouseout', hideTooltip)
-    .on('click', (event, d) => { event.stopPropagation(); completeTask(event, d); });
+    .on('click', (event, d) => { event.stopPropagation(); pinTooltip(event, d); });
 
   enter.append('circle')
     .attr('class', 'glow-outer')
@@ -1124,6 +1137,31 @@ function renderBubbles() {
 }
 
 // ── INTERACTIONS ──────────────────────────────────────────────────────────────
+let activeTask = null;
+let activeEvent = null;
+
+function pinTooltip(event, d) {
+  activeTask = d;
+  activeEvent = event;
+  showTooltip(event, d);
+  tooltip.classList.add('pinned');
+}
+
+function confirmComplete() {
+  if (!activeTask) return;
+  tooltip.classList.remove('pinned', 'visible');
+  completeTask(activeEvent, activeTask);
+  activeTask = null;
+}
+
+// Close pinned tooltip on background click
+document.addEventListener('click', () => {
+  if (tooltip.classList.contains('pinned')) {
+    tooltip.classList.remove('pinned', 'visible');
+    activeTask = null;
+  }
+});
+
 function completeTask(event, d) {
   hideTooltip();
   awardPoints(d, event.clientX, event.clientY);
@@ -1173,6 +1211,7 @@ function moveTooltip(event) {
 }
 
 function hideTooltip() {
+  if (tooltip.classList.contains('pinned')) return;
   tooltip.classList.remove('visible');
 }
 
