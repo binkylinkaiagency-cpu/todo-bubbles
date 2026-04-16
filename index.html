@@ -320,6 +320,12 @@
     }
     #tooltip .t-action button:hover { background: #16a34a; }
     #tooltip.pinned { pointer-events: all; }
+    #t-breakdown-btn { background:#7c3aed; color:#fff; border:none; border-radius:6px; padding:6px 10px; font-size:12px; font-weight:700; cursor:pointer; }
+    #t-breakdown-btn:hover { background:#6d28d9; }
+    #t-breakdown-btn:disabled { background:#4a3070; color:#aaa; cursor:not-allowed; }
+    #t-subtasks-list .sub-item { display:flex; align-items:center; gap:6px; font-size:11px; padding:3px 0; border-bottom:1px solid rgba(255,255,255,0.06); }
+    #t-subtasks-list .sub-item input[type=checkbox] { accent-color:#22c55e; cursor:pointer; }
+    #t-subtasks-list .sub-item.done span { text-decoration:line-through; opacity:0.5; }
 
     /* MODAL */
     #modal-overlay {
@@ -642,7 +648,11 @@
   <div class="t-row"><span>ROI score</span><span id="t-score"></span></div>
   <div id="t-deadline-row" class="t-row" style="display:none"><span>Deadline</span><span id="t-deadline"></span></div>
   <div><span class="t-cat" id="t-cat"></span></div>
-  <div class="t-action"><button id="t-complete-btn" onclick="confirmComplete()">✓ Afvinken</button></div>
+  <div id="t-subtasks-list" style="display:none; margin-top:8px;"></div>
+  <div class="t-action" style="display:flex; gap:6px;">
+    <button id="t-complete-btn" onclick="confirmComplete()" style="flex:1">✓ Afvinken</button>
+    <button id="t-breakdown-btn" onclick="breakItDown()" style="flex:1; background:#7c3aed;">🔀 Break it down</button>
+  </div>
 </div>
 
 <!-- Add Task Modal -->
@@ -1145,6 +1155,17 @@ function pinTooltip(event, d) {
   activeEvent = event;
   showTooltip(event, d);
   tooltip.classList.add('pinned');
+  // Show existing subtasks if any
+  const t = tasks.find(t => t.id === d.id);
+  const list = document.getElementById('t-subtasks-list');
+  if (t && t.subtasks && t.subtasks.length > 0) {
+    renderSubtaskList(t);
+  } else {
+    list.style.display = 'none';
+    list.innerHTML = '';
+  }
+  document.getElementById('t-breakdown-btn').textContent = '🔀 Break it down';
+  document.getElementById('t-breakdown-btn').disabled = false;
 }
 
 function confirmComplete() {
@@ -1152,6 +1173,82 @@ function confirmComplete() {
   tooltip.classList.remove('pinned', 'visible');
   completeTask(activeEvent, activeTask);
   activeTask = null;
+}
+
+async function breakItDown() {
+  if (!activeTask) return;
+  const btn = document.getElementById('t-breakdown-btn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Bezig...';
+
+  const task = activeTask;
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=AIzaSyCZeLe3dySAr5I6YXZEmCADsCxwJX3fmU8`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [{ text:
+          `Geef 3 tot 5 concrete subtaken voor: "${task.title}" (categorie: ${task.category}).
+Antwoord ALLEEN met een JSON array van strings, geen uitleg. Voorbeeld: ["Stap 1","Stap 2","Stap 3"]`
+        }] }] })
+      }
+    );
+    const json = await res.json();
+    const raw = json.candidates[0].content.parts[0].text.trim();
+    const match = raw.match(/\[[\s\S]*\]/);
+    if (!match) throw new Error('no array');
+    const steps = JSON.parse(match[0]);
+
+    // Store subtasks on the task
+    const t = tasks.find(t => t.id === task.id);
+    if (t) {
+      t.subtasks = steps.map((s, i) => ({ id: `sub-${t.id}-${i}`, title: s, done: false }));
+      saveTasks();
+      renderSubtaskList(t);
+    }
+  } catch (e) {
+    btn.textContent = '❌ Fout';
+  } finally {
+    btn.disabled = false;
+    if (btn.textContent === '⏳ Bezig...') btn.textContent = '🔀 Break it down';
+  }
+}
+
+function renderSubtaskList(task) {
+  const list = document.getElementById('t-subtasks-list');
+  list.style.display = 'block';
+  list.innerHTML = (task.subtasks || []).map(sub =>
+    `<div class="sub-item${sub.done ? ' done' : ''}" data-sub="${sub.id}">
+      <input type="checkbox" ${sub.done ? 'checked' : ''} onchange="toggleSubtask('${task.id}', '${sub.id}', this.checked)">
+      <span>${sub.title}</span>
+    </div>`
+  ).join('');
+}
+
+function toggleSubtask(taskId, subId, done) {
+  const t = tasks.find(t => String(t.id) === String(taskId));
+  if (!t || !t.subtasks) return;
+  const sub = t.subtasks.find(s => s.id === subId);
+  if (sub) sub.done = done;
+
+  const item = document.querySelector(`.sub-item[data-sub="${subId}"]`);
+  if (item) item.classList.toggle('done', done);
+
+  // Auto-complete parent if all subtasks done
+  if (t.subtasks.every(s => s.done)) {
+    setTimeout(() => {
+      tooltip.classList.remove('pinned', 'visible');
+      awardPoints(t, window.innerWidth / 2, window.innerHeight / 2);
+      tasks = tasks.filter(x => x.id !== t.id);
+      saveTasks();
+      renderBubbles();
+      updateCounts();
+      activeTask = null;
+    }, 600);
+  } else {
+    saveTasks();
+  }
 }
 
 // Close pinned tooltip on background click
