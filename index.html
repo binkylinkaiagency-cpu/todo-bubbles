@@ -575,6 +575,34 @@
       <span class="cat-count" id="count-Persoonlijk">0</span>
     </button>
 
+    <div style="margin: 10px 0 4px; font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:0.8px; color:var(--text-dim); padding: 0 4px;">Urgentie</div>
+
+    <button class="cat-btn" data-urg="🔴⚡ SUPERPRIO" onclick="filterUrg(this, '🔴⚡ SUPERPRIO')">
+      <span class="cat-dot" style="background:#ff2d2d"></span>
+      SUPERPRIO
+      <span class="cat-count" id="count-urg-super">0</span>
+    </button>
+    <button class="cat-btn" data-urg="🔴 Kritiek" onclick="filterUrg(this, '🔴 Kritiek')">
+      <span class="cat-dot" style="background:#f87171"></span>
+      Kritiek
+      <span class="cat-count" id="count-urg-kritiek">0</span>
+    </button>
+    <button class="cat-btn" data-urg="🟠 Hoog" onclick="filterUrg(this, '🟠 Hoog')">
+      <span class="cat-dot" style="background:#f97316"></span>
+      Hoog
+      <span class="cat-count" id="count-urg-hoog">0</span>
+    </button>
+    <button class="cat-btn" data-urg="🟡 Matig" onclick="filterUrg(this, '🟡 Matig')">
+      <span class="cat-dot" style="background:#eab308"></span>
+      Matig
+      <span class="cat-count" id="count-urg-matig">0</span>
+    </button>
+    <button class="cat-btn" data-urg="🟢 Laag" onclick="filterUrg(this, '🟢 Laag')">
+      <span class="cat-dot" style="background:#22c55e"></span>
+      Laag
+      <span class="cat-count" id="count-urg-laag">0</span>
+    </button>
+
     <div id="sidebar-bottom">
       <div id="gamify-bar">
         <div class="g-level">Level <span id="g-level-num">1</span> — <span id="g-level-name">Starter</span></div>
@@ -871,17 +899,33 @@ function radiusFromScore(score) {
   return Math.max(28, Math.min(75, 20 + score * 5));
 }
 
+// ── URGENCY MAP ───────────────────────────────────────────────────────────────
+function autoUrgency(t) {
+  const score = scoreTask(t);
+  if (t.id === 1) return '🔴⚡ SUPERPRIO'; // CHB FB Ads special
+  if (t.priority >= 5) return '🔴 Kritiek';
+  if (score >= 12 || t.priority >= 4) return '🟠 Hoog';
+  if (score >= 6 || t.priority >= 3) return '🟡 Matig';
+  return '🟢 Laag';
+}
+
+const URG_ORDER = { '🔴⚡ SUPERPRIO': 5, '🔴 Kritiek': 4, '🟠 Hoog': 3, '🟡 Matig': 2, '🟢 Laag': 1 };
+
 // ── CHART ─────────────────────────────────────────────────────────────────────
 let simulation, svg, g, linkG, node, linkSel;
 let currentFilter = 'all';
+let currentUrgFilter = 'all';
 let highlightId = null;
 let zoomTransform = d3.zoomIdentity;
 
 const tooltip = document.getElementById('tooltip');
 
 function getFilteredTasks() {
-  if (currentFilter === 'all') return tasks;
-  return tasks.filter(t => t.category === currentFilter);
+  return tasks.filter(t => {
+    const catOk = currentFilter === 'all' || t.category === currentFilter;
+    const urgOk = currentUrgFilter === 'all' || autoUrgency(t) === currentUrgFilter;
+    return catOk && urgOk;
+  });
 }
 
 function initChart() {
@@ -1133,9 +1177,21 @@ function hideTooltip() {
 }
 
 function filterCat(btn, cat) {
-  document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('[data-cat]').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   currentFilter = cat;
+  currentUrgFilter = 'all';
+  document.querySelectorAll('[data-urg]').forEach(b => b.classList.remove('active'));
+  renderBubbles();
+}
+
+function filterUrg(btn, urg) {
+  document.querySelectorAll('[data-urg]').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  currentUrgFilter = urg;
+  currentFilter = 'all';
+  document.querySelectorAll('[data-cat]').forEach(b => b.classList.remove('active'));
+  document.querySelector('[data-cat="all"]').classList.add('active');
   renderBubbles();
 }
 
@@ -1175,6 +1231,12 @@ function updateCounts() {
   Object.keys(CATS).forEach(cat => {
     const el = document.getElementById('count-' + cat);
     if (el) el.textContent = tasks.filter(t => t.category === cat).length;
+  });
+  // urgency counts
+  const urgMap = {'🔴⚡ SUPERPRIO':'super','🔴 Kritiek':'kritiek','🟠 Hoog':'hoog','🟡 Matig':'matig','🟢 Laag':'laag'};
+  Object.entries(urgMap).forEach(([urg, key]) => {
+    const el = document.getElementById('count-urg-' + key);
+    if (el) el.textContent = tasks.filter(t => autoUrgency(t) === urg).length;
   });
 }
 
