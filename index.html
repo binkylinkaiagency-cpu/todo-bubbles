@@ -632,6 +632,7 @@
         </div>
         <div class="g-xp-bar" style="margin-top:4px;"><div id="g-daily-fill" style="height:100%;background:linear-gradient(90deg,#f59e0b,#ef4444);border-radius:2px;transition:width 0.4s;width:0%"></div></div>
       </div>
+      <button id="notion-sync-btn" onclick="syncFromNotion()" style="background:rgba(155,109,255,0.15);border-color:rgba(155,109,255,0.4);color:#c4b5fd;margin-bottom:4px;">⚡ Notion Sync</button>
       <button id="what-next-btn" onclick="whatNext()">⚡ Wat nu doen?</button>
       <button id="add-btn" onclick="openModal()">+ Taak toevoegen</button>
       <div id="task-total"></div>
@@ -725,6 +726,67 @@
 </div>
 
 <script>
+// ── NOTION SYNC ───────────────────────────────────────────────────────────────
+const PROXY_URL = 'https://conscious-swap-gis-cottages.trycloudflare.com';
+let notionSynced = false;
+
+async function syncFromNotion(silent = false) {
+  const syncBtn = document.getElementById('notion-sync-btn');
+  try {
+    if (syncBtn) { syncBtn.textContent = '⟳ Syncing…'; syncBtn.disabled = true; }
+    const res = await fetch(`${PROXY_URL}/tasks`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const notionTasks = await res.json();
+    if (!Array.isArray(notionTasks) || notionTasks.length === 0) throw new Error('empty');
+
+    // Replace tasks with Notion data, preserve local gamify XP
+    tasks = notionTasks;
+    nextId = Date.now();
+    saveTasks();
+    renderBubbles();
+    updateCounts();
+    notionSynced = true;
+    const ts = new Date().toLocaleTimeString('nl', { hour: '2-digit', minute: '2-digit' });
+    if (syncBtn) { syncBtn.textContent = `✓ Notion (${ts})`; syncBtn.disabled = false; }
+    if (!silent) showToast('Gesynchroniseerd met Notion ✓');
+  } catch (e) {
+    if (syncBtn) { syncBtn.textContent = '⚡ Notion Sync'; syncBtn.disabled = false; }
+    if (!silent) showToast('Sync mislukt — proxy niet bereikbaar');
+  }
+}
+
+function showToast(msg) {
+  const el = document.createElement('div');
+  el.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:rgba(255,255,255,0.1);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,0.15);padding:10px 20px;border-radius:20px;font-size:13px;color:#e8eaf0;z-index:999;pointer-events:none;transition:opacity 0.3s;';
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => { el.style.opacity = '0'; setTimeout(() => el.remove(), 300); }, 2500);
+}
+
+async function notionComplete(notionId) {
+  if (!notionId) return;
+  try {
+    await fetch(`${PROXY_URL}/tasks/${notionId}/complete`, { method: 'PATCH' });
+  } catch (e) { /* silent fail */ }
+}
+
+async function notionCreate(task) {
+  try {
+    const res = await fetch(`${PROXY_URL}/tasks`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(task),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.notionId) {
+        const t = tasks.find(t => t.id === task.id);
+        if (t) { t.notionId = data.notionId; saveTasks(); }
+      }
+    }
+  } catch (e) { /* silent fail */ }
+}
+
 // ── DATA ──────────────────────────────────────────────────────────────────────
 const CATS = {
   LinkAI:      '#4f9cf9',
@@ -816,6 +878,22 @@ let tasks = JSON.parse(localStorage.getItem('todo-bubbles') || 'null') || [
   { id: 70, title: 'Mitch — overmaken via Dean',                   category: 'Persoonlijk', priority: 3, impact: 3, effort: 1 },
   { id: 71, title: 'Rowdie — telefoonset regelen',                 category: 'Persoonlijk', priority: 3, impact: 3, effort: 1 },
   { id: 72, title: 'Rowdie — shirtjes',                            category: 'Persoonlijk', priority: 2, impact: 2, effort: 1 },
+  // ── Nieuw vandaag ──────────────────────────────────────────────────────────
+  { id: 73, title: 'Buildman website afronden — vanavond',          category: 'LinkAI',      priority: 5, impact: 5, effort: 3, deadline: '2026-04-17' },
+  { id: 74, title: 'Sergio thuisbatterij site — vanavond live',     category: 'LinkAI',      priority: 5, impact: 5, effort: 3, deadline: '2026-04-17' },
+  { id: 75, title: 'ai4animationpy testen — locomotion demo',       category: 'LinkAI',      priority: 3, impact: 4, effort: 3 },
+  { id: 76, title: 'Binky + Linky avatars animeren met AI motion',  category: 'LinkAI',      priority: 3, impact: 4, effort: 4 },
+  { id: 77, title: 'Animated 3D characters voor klanten',           category: 'LinkAI',      priority: 3, impact: 4, effort: 4 },
+  { id: 78, title: 'Administratie rechttrekken — extra\'s factureren', category: 'LinkAI',   priority: 4, impact: 5, effort: 2 },
+  { id: 79, title: 'Retainers opstarten — alle klanten',            category: 'LinkAI',      priority: 4, impact: 5, effort: 2 },
+  { id: 80, title: 'Openstaande bedragen innen voor 1 mei',         category: 'LinkAI',      priority: 4, impact: 5, effort: 2, deadline: '2026-05-01' },
+  { id: 81, title: 'Link AI eigen website — morgen aanpakken',      category: 'LinkAI',      priority: 4, impact: 5, effort: 4 },
+  { id: 82, title: 'Huizenplatform bouwen',                         category: 'LinkAI',      priority: 3, impact: 5, effort: 5 },
+  { id: 83, title: 'Deo opvolgen — wel/niet officieel',             category: 'LinkAI',      priority: 3, impact: 3, effort: 1 },
+  { id: 84, title: 'URGENT: Talk to notary — Sempol contract',      category: 'AFNI',        priority: 5, impact: 5, effort: 1 },
+  { id: 85, title: 'Make Sempol living room photos look different',  category: 'AFNI',        priority: 3, impact: 3, effort: 2 },
+  { id: 86, title: 'URGENT: Talk to notary — Sempol contract',      category: 'Persoonlijk', priority: 5, impact: 5, effort: 1, deadline: '2026-05-01' },
+  { id: 87, title: '1 mei — afspraak mama met notaris',             category: 'Persoonlijk', priority: 5, impact: 5, effort: 1, deadline: '2026-05-01' },
 ];
 
 let nextId = Math.max(...tasks.map(t => t.id)) + 1;
@@ -1220,6 +1298,7 @@ function pinTooltip(event, d) {
 function confirmComplete() {
   if (!activeTask) return;
   tooltip.classList.remove('pinned', 'visible');
+  if (activeTask.notionId) notionComplete(activeTask.notionId);
   completeTask(activeEvent, activeTask);
   activeTask = null;
 }
@@ -1451,6 +1530,7 @@ function saveTask() {
 
   tasks.push(task);
   saveTasks();
+  notionCreate(task);
   closeModal();
   document.getElementById('f-title').value = '';
   document.getElementById('f-pri').value = 3; document.getElementById('v-pri').textContent = '3';
@@ -1514,6 +1594,9 @@ window.addEventListener('resize', () => {
 });
 
 initChart();
+
+// Auto-sync from Notion on load (silent — shows button state only)
+setTimeout(() => syncFromNotion(true), 1200);
 </script>
 </body>
 </html>
