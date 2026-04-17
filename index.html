@@ -644,7 +644,7 @@
 </div>
 
 <!-- Tooltip -->
-<div id="tooltip">
+<div id="tooltip" onclick="event.stopPropagation()">
   <div class="t-title" id="t-title"></div>
   <div class="t-row"><span>Prioriteit</span><span id="t-pri"></span></div>
   <div class="t-row"><span>Impact</span><span id="t-impact"></span></div>
@@ -1082,6 +1082,7 @@ function renderBubbles() {
     .attr('class', d => `bubble-group${d.id === highlightId ? ' highlight' : ''}`)
     .style('opacity', 0)
     .call(d3.drag()
+      .clickDistance(8)
       .on('start', (event, d) => {
         if (!event.active) simulation.alphaTarget(0.3).restart();
         d.fx = d.x; d.fy = d.y;
