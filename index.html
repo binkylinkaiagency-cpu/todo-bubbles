@@ -496,7 +496,7 @@
 
     #zoom-controls {
       position: absolute;
-      bottom: 56px;
+      bottom: 96px;
       right: 20px;
       display: flex;
       flex-direction: column;
@@ -527,7 +527,7 @@
 
     #score-legend {
       position: absolute;
-      bottom: 20px;
+      bottom: 88px;
       right: 20px;
       display: flex;
       align-items: center;
@@ -538,6 +538,88 @@
 
     #score-legend .dot-sm { width: 10px; height: 10px; border-radius: 50%; background: rgba(255,255,255,0.2); }
     #score-legend .dot-lg { width: 22px; height: 22px; border-radius: 50%; background: rgba(255,255,255,0.2); }
+
+    /* FOCUS MODE */
+    #focus-back {
+      position: fixed; top: 16px; left: 216px;
+      background: rgba(245,158,11,0.15);
+      border: 1px solid rgba(245,158,11,0.4);
+      color: #f59e0b;
+      padding: 8px 18px; border-radius: 20px;
+      font-size: 13px; font-weight: 600; cursor: pointer;
+      z-index: 20; display: none; font-family: var(--font-head);
+      transition: background 0.2s;
+    }
+    #focus-back:hover { background: rgba(245,158,11,0.25); }
+    #focus-back.active { display: block; }
+    #focus-label {
+      position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
+      font-family: var(--font-head); font-size: 14px; font-weight: 700;
+      color: #f59e0b; z-index: 20; display: none; pointer-events: none;
+      text-shadow: 0 0 20px rgba(245,158,11,0.6);
+    }
+    #focus-label.active { display: block; }
+    .bubble-group.is-parent circle.bg {
+      stroke: #f59e0b; stroke-width: 2.5; stroke-dasharray: 6 3;
+    }
+    .bubble-group.is-parent .expand-ring {
+      fill: none; stroke: rgba(245,158,11,0.3); stroke-width: 1.5;
+      animation: pulse-ring 2s ease-in-out infinite;
+    }
+    @keyframes pulse-ring {
+      0%,100% { r: 0; opacity: 0.7; }
+      50% { r: 12; opacity: 0; }
+    }
+
+    /* SATELLITES */
+    .satellite-group { cursor: pointer; }
+    .sat-bg { transition: fill 0.2s, r 0.2s; }
+    .sat-bg:hover { filter: brightness(1.3); }
+
+    /* DAGRITME BALK */
+    #dagritme {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 76px;
+      background: var(--bg2);
+      border-top: 1px solid var(--border);
+      padding: 10px 24px 8px;
+      z-index: 15;
+    }
+    #dagritme-title {
+      font-size: 10px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.8px; color: var(--text-dim); margin-bottom: 10px;
+    }
+    #dagritme-track {
+      position: relative; height: 2px;
+      background: rgba(255,255,255,0.08); border-radius: 1px;
+    }
+    .dag-hour-tick {
+      position: absolute; top: -3px; width: 1px; height: 8px;
+      background: rgba(255,255,255,0.12); transform: translateX(-50%);
+    }
+    .dag-hour-label {
+      position: absolute; top: 9px; font-size: 8px; color: var(--text-dim);
+      transform: translateX(-50%); white-space: nowrap; pointer-events: none;
+    }
+    .dag-event {
+      position: absolute; top: -11px;
+      width: 24px; height: 24px; border-radius: 50%;
+      transform: translateX(-50%);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; border: 1.5px solid rgba(255,255,255,0.18);
+      background: rgba(255,255,255,0.06); cursor: pointer;
+      transition: all 0.2s; z-index: 2;
+    }
+    .dag-event:hover { border-color: rgba(255,255,255,0.4); background: rgba(255,255,255,0.12); }
+    .dag-event.done { background: rgba(34,197,94,0.28); border-color: #22c55e; }
+    .dag-event .dag-tip {
+      position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+      background: var(--bg2); border: 1px solid var(--border); border-radius: 6px;
+      padding: 4px 8px; font-size: 10px; color: var(--text); white-space: nowrap;
+      opacity: 0; pointer-events: none; transition: opacity 0.15s; z-index: 30;
+    }
+    .dag-event:hover .dag-tip { opacity: 1; }
   </style>
 </head>
 <body>
@@ -641,6 +723,10 @@
 
   <div id="main">
     <svg id="chart"></svg>
+    <div id="dagritme">
+      <div id="dagritme-title">Dagritme — <span id="dag-date"></span></div>
+      <div id="dagritme-track"></div>
+    </div>
   </div>
 </div>
 
@@ -711,6 +797,9 @@
     </div>
   </div>
 </div>
+
+<button id="focus-back" onclick="exitFocusMode()">← Terug</button>
+<div id="focus-label">Facebook Ads — klik een listing om af te vinken</div>
 
 <div id="zoom-controls">
   <button id="zoom-in">+</button>
@@ -878,6 +967,16 @@ let tasks = JSON.parse(localStorage.getItem('todo-bubbles') || 'null') || [
   { id: 70, title: 'Mitch — overmaken via Dean',                   category: 'Persoonlijk', priority: 3, impact: 3, effort: 1 },
   { id: 71, title: 'Rowdie — telefoonset regelen',                 category: 'Persoonlijk', priority: 3, impact: 3, effort: 1 },
   { id: 72, title: 'Rowdie — shirtjes',                            category: 'Persoonlijk', priority: 2, impact: 2, effort: 1 },
+  // ── CHB Facebook Ads — parent + child listings ────────────────────────────
+  { id: 100, title: 'Facebook Ads',    category: 'CHB', priority: 5, impact: 5, effort: 2, isParent: true },
+  { id: 101, title: 'Rob house',       category: 'CHB', priority: 3, impact: 3, effort: 1, parentId: 100 },
+  { id: 102, title: 'Sabi sans',       category: 'CHB', priority: 3, impact: 3, effort: 1, parentId: 100 },
+  { id: 103, title: 'Lourinka',        category: 'CHB', priority: 3, impact: 3, effort: 1, parentId: 100 },
+  { id: 104, title: 'LYSA',            category: 'CHB', priority: 4, impact: 4, effort: 1, parentId: 100 },
+  { id: 105, title: 'Lieke 30',        category: 'CHB', priority: 3, impact: 3, effort: 1, parentId: 100 },
+  { id: 106, title: 'Mimpi',           category: 'CHB', priority: 3, impact: 3, effort: 1, parentId: 100 },
+  { id: 107, title: '1bk4',            category: 'CHB', priority: 3, impact: 3, effort: 1, parentId: 100 },
+  { id: 108, title: 'Boosted listing', category: 'CHB', priority: 4, impact: 4, effort: 2, parentId: 100 },
   // ── Nieuw vandaag ──────────────────────────────────────────────────────────
   { id: 73, title: 'Buildman website afronden — vanavond',          category: 'LinkAI',      priority: 5, impact: 5, effort: 3, deadline: '2026-04-17' },
   { id: 74, title: 'Sergio thuisbatterij site — vanavond live',     category: 'LinkAI',      priority: 5, impact: 5, effort: 3, deadline: '2026-04-17' },
@@ -1061,20 +1160,46 @@ function autoUrgency(t) {
 const URG_ORDER = { '🔴⚡ SUPERPRIO': 5, '🔴 Kritiek': 4, '🟠 Hoog': 3, '🟡 Matig': 2, '🟢 Laag': 1 };
 
 // ── CHART ─────────────────────────────────────────────────────────────────────
-let simulation, svg, g, linkG, node, linkSel;
+let simulation, svg, g, linkG, dimRect, node, linkSel, satelliteG;
 let currentFilter = 'all';
 let currentUrgFilter = 'all';
 let highlightId = null;
 let zoomTransform = d3.zoomIdentity;
+let focusParentId = null;
+let focusParentPos = null;
+let activeSatNode = null;
 
 const tooltip = document.getElementById('tooltip');
 
 function getFilteredTasks() {
+  if (focusParentId !== null) {
+    return tasks.filter(t => t.id === focusParentId || t.parentId === focusParentId);
+  }
   return tasks.filter(t => {
+    if (t.parentId) return false; // children hidden in normal view
     const catOk = currentFilter === 'all' || t.category === currentFilter;
     const urgOk = currentUrgFilter === 'all' || autoUrgency(t) === currentUrgFilter;
     return catOk && urgOk;
   });
+}
+
+function enterFocusMode(parentId) {
+  const parentNode = node ? node.data().find(d => d.id === parentId) : null;
+  focusParentPos = parentNode ? { x: parentNode.x, y: parentNode.y } : null;
+  focusParentId = parentId;
+  document.getElementById('focus-back').classList.add('active');
+  document.getElementById('focus-label').classList.add('active');
+  renderBubbles();
+  updateCounts();
+}
+
+function exitFocusMode() {
+  focusParentId = null;
+  focusParentPos = null;
+  document.getElementById('focus-back').classList.remove('active');
+  document.getElementById('focus-label').classList.remove('active');
+  renderBubbles();
+  updateCounts();
 }
 
 function initChart() {
@@ -1098,8 +1223,22 @@ function initChart() {
   // Links layer (behind nodes)
   linkG = zoomG.append('g').attr('class', 'links');
 
+  // Dim rect for focus mode (between links and nodes)
+  dimRect = zoomG.append('rect')
+    .attr('class', 'focus-dim')
+    .attr('x', -5000).attr('y', -5000)
+    .attr('width', 10000).attr('height', 10000)
+    .attr('fill', 'rgba(0,0,0,0.72)')
+    .attr('pointer-events', 'all')
+    .style('opacity', 0)
+    .style('transition', 'opacity 0.4s')
+    .on('click', () => { if (focusParentId !== null) exitFocusMode(); });
+
   // Nodes layer
   g = zoomG.append('g').attr('class', 'bubbles');
+
+  // Satellite layer (above bubbles)
+  satelliteG = zoomG.append('g').attr('class', 'satellites');
 
   // Zoom behavior
   const zoom = d3.zoom()
@@ -1143,13 +1282,16 @@ function initChart() {
 }
 
 function renderBubbles() {
+  // Show/hide focus dim
+  if (dimRect) dimRect.style('opacity', focusParentId !== null ? '1' : '0');
+
   const data = getFilteredTasks().map(t => {
     const existing = node ? node.data().find(d => d.id === t.id) : null;
-    return existing ? { ...t, x: existing.x, y: existing.y, vx: existing.vx, vy: existing.vy } : {
-      ...t,
-      x: window.innerWidth / 2 + (Math.random() - 0.5) * 200,
-      y: window.innerHeight / 2 + (Math.random() - 0.5) * 200,
-    };
+    if (existing) return { ...t, x: existing.x, y: existing.y, vx: existing.vx, vy: existing.vy };
+    // Children spawn from parent position when entering focus mode
+    const spawnX = (focusParentPos ? focusParentPos.x : window.innerWidth / 2) + (Math.random() - 0.5) * 40;
+    const spawnY = (focusParentPos ? focusParentPos.y : window.innerHeight / 2) + (Math.random() - 0.5) * 40;
+    return { ...t, x: spawnX, y: spawnY };
   });
 
   const allNodes = g.selectAll('.bubble-group').data(data, d => d.id);
@@ -1157,7 +1299,12 @@ function renderBubbles() {
   // ENTER
   const enter = allNodes.enter()
     .append('g')
-    .attr('class', d => `bubble-group${d.id === highlightId ? ' highlight' : ''}`)
+    .attr('class', d => {
+      let cls = 'bubble-group';
+      if (d.id === highlightId) cls += ' highlight';
+      if (d.isParent) cls += ' is-parent';
+      return cls;
+    })
     .style('opacity', 0)
     .call(d3.drag()
       .clickDistance(8)
@@ -1269,8 +1416,98 @@ function renderBubbles() {
         .attr('x2', d => d.target.x)
         .attr('y2', d => d.target.y);
     }
+    updateSatellitePositions();
   });
   simulation.alpha(0.4).restart();
+}
+
+// ── SATELLITES ────────────────────────────────────────────────────────────────
+function showSatellites(task) {
+  clearSatellites();
+  if (!task || !task.subtasks || task.subtasks.length === 0) return;
+  const nodeData = simulation.nodes().find(n => n.id === task.id);
+  if (!nodeData) return;
+  activeSatNode = nodeData;
+
+  const n = task.subtasks.length;
+  const parentR = getCurrentBubbleR(task);
+  const satR = 16;
+  const orbitR = parentR + satR + 16;
+
+  task.subtasks.forEach((sub, i) => {
+    const angle = (2 * Math.PI * i / n) - Math.PI / 2;
+    const satGroup = satelliteG.append('g')
+      .attr('class', 'satellite-group')
+      .datum({ angle, orbitR })
+      .on('click', (event) => {
+        event.stopPropagation();
+        const t = tasks.find(t => t.id === task.id);
+        if (!t) return;
+        toggleSubtask(task.id, sub.id, !sub.done);
+        const updated = tasks.find(t => t.id === task.id);
+        if (updated) showSatellites(updated);
+      });
+
+    satGroup.append('line')
+      .attr('class', 'sat-line')
+      .attr('stroke', 'rgba(255,255,255,0.18)')
+      .attr('stroke-width', 1)
+      .attr('stroke-dasharray', '3 2');
+
+    satGroup.append('circle')
+      .attr('class', 'sat-bg')
+      .attr('r', satR)
+      .attr('fill', sub.done ? 'rgba(34,197,94,0.35)' : 'rgba(30,30,60,0.85)')
+      .attr('stroke', sub.done ? '#22c55e' : 'rgba(255,255,255,0.25)')
+      .attr('stroke-width', 1.5);
+
+    const label = sub.done ? '✓' : (sub.title.length > 9 ? sub.title.slice(0, 8) + '…' : sub.title);
+    satGroup.append('text')
+      .attr('text-anchor', 'middle')
+      .attr('dominant-baseline', 'middle')
+      .attr('fill', sub.done ? '#22c55e' : 'rgba(255,255,255,0.85)')
+      .attr('font-size', sub.done ? '13px' : '8px')
+      .attr('font-family', 'var(--font-body)')
+      .attr('pointer-events', 'none')
+      .text(label);
+  });
+
+  updateSatellitePositions();
+}
+
+function updateSatellitePositions() {
+  if (!activeSatNode || !satelliteG) return;
+  const px = activeSatNode.x, py = activeSatNode.y;
+  satelliteG.selectAll('.satellite-group').each(function(d) {
+    if (!d) return;
+    const sx = px + d.orbitR * Math.cos(d.angle);
+    const sy = py + d.orbitR * Math.sin(d.angle);
+    d3.select(this).attr('transform', `translate(${sx},${sy})`);
+    d3.select(this).select('.sat-line')
+      .attr('x1', -(sx - px)).attr('y1', -(sy - py))
+      .attr('x2', 0).attr('y2', 0);
+  });
+}
+
+function clearSatellites() {
+  if (satelliteG) satelliteG.selectAll('*').remove();
+  activeSatNode = null;
+}
+
+function getCurrentBubbleR(task) {
+  const baseR = radiusFromScore(scoreTask(task));
+  if (!task.subtasks || task.subtasks.length === 0) return baseR;
+  const doneRatio = task.subtasks.filter(s => s.done).length / task.subtasks.length;
+  return baseR * (1 - doneRatio * 0.45);
+}
+
+function updateParentBubbleSize(task) {
+  const newR = getCurrentBubbleR(task);
+  g.selectAll('.bubble-group')
+    .filter(d => d.id === task.id)
+    .select('circle.bg')
+    .transition().duration(350)
+    .attr('r', newR);
 }
 
 // ── INTERACTIONS ──────────────────────────────────────────────────────────────
@@ -1282,14 +1519,15 @@ function pinTooltip(event, d) {
   activeEvent = event;
   showTooltip(event, d);
   tooltip.classList.add('pinned');
-  // Show existing subtasks if any
   const t = tasks.find(t => t.id === d.id);
   const list = document.getElementById('t-subtasks-list');
   if (t && t.subtasks && t.subtasks.length > 0) {
     renderSubtaskList(t);
+    showSatellites(t);
   } else {
     list.style.display = 'none';
     list.innerHTML = '';
+    clearSatellites();
   }
   document.getElementById('t-breakdown-btn').textContent = '🔀 Break it down';
   document.getElementById('t-breakdown-btn').disabled = false;
@@ -1298,6 +1536,7 @@ function pinTooltip(event, d) {
 function confirmComplete() {
   if (!activeTask) return;
   tooltip.classList.remove('pinned', 'visible');
+  clearSatellites();
   if (activeTask.notionId) notionComplete(activeTask.notionId);
   completeTask(activeEvent, activeTask);
   activeTask = null;
@@ -1334,6 +1573,7 @@ Antwoord ALLEEN met een JSON array van strings, geen uitleg. Voorbeeld: ["Stap 1
       t.subtasks = steps.map((s, i) => ({ id: `sub-${t.id}-${i}`, title: s, done: false }));
       saveTasks();
       renderSubtaskList(t);
+      showSatellites(t);
     }
   } catch (e) {
     btn.textContent = '❌ Fout';
@@ -1363,17 +1603,21 @@ function toggleSubtask(taskId, subId, done) {
   const item = document.querySelector(`.sub-item[data-sub="${subId}"]`);
   if (item) item.classList.toggle('done', done);
 
+  // Shrink parent bubble based on completion ratio
+  updateParentBubbleSize(t);
+
   // Auto-complete parent if all subtasks done
   if (t.subtasks.every(s => s.done)) {
     setTimeout(() => {
       tooltip.classList.remove('pinned', 'visible');
+      clearSatellites();
       awardPoints(t, window.innerWidth / 2, window.innerHeight / 2);
       tasks = tasks.filter(x => x.id !== t.id);
       saveTasks();
       renderBubbles();
       updateCounts();
       activeTask = null;
-    }, 600);
+    }, 700);
   } else {
     saveTasks();
   }
@@ -1383,6 +1627,7 @@ function toggleSubtask(taskId, subId, done) {
 document.addEventListener('click', () => {
   if (tooltip.classList.contains('pinned')) {
     tooltip.classList.remove('pinned', 'visible');
+    clearSatellites();
     activeTask = null;
   }
 });
@@ -1597,6 +1842,113 @@ initChart();
 
 // Auto-sync from Notion on load (silent — shows button state only)
 setTimeout(() => syncFromNotion(true), 1200);
+
+// ── DAGRITME BALK ─────────────────────────────────────────────────────────────
+const DAG_START = 9;   // 09:00
+const DAG_END = 27;    // 03:00 next day
+const DAG_SPAN = DAG_END - DAG_START; // 18 hours
+
+const DAG_EVENTS = [
+  { id: 'subuh',   label: 'Subuh',          emoji: '🌙', hour: 5.5  },
+  { id: 'ochtend', label: 'Ochtend ritueel', emoji: '☕', hour: 9.5  },
+  { id: 'dzuhur',  label: 'Dzuhur',          emoji: '☀️', hour: 12   },
+  { id: 'asr',     label: 'Asr',             emoji: '🌤️', hour: 15.5 },
+  { id: 'maghrib', label: 'Maghrib',          emoji: '🌅', hour: 18   },
+  { id: 'isya',    label: 'Isya',             emoji: '✨', hour: 19.5 },
+  { id: 'bed',     label: 'Naar bed',         emoji: '💤', hour: 23   },
+];
+
+function dagPos(hour) {
+  return Math.max(1, Math.min(99, ((hour - DAG_START) / DAG_SPAN) * 100));
+}
+
+function getDagState() {
+  const today = new Date().toISOString().slice(0, 10);
+  const raw = JSON.parse(localStorage.getItem('dagritme') || '{}');
+  if (raw.date !== today) return { date: today, done: {} };
+  return raw;
+}
+
+function saveDagState(state) {
+  localStorage.setItem('dagritme', JSON.stringify(state));
+}
+
+function initDagritme() {
+  const track = document.getElementById('dagritme-track');
+  const dateEl = document.getElementById('dag-date');
+  const today = new Date();
+  dateEl.textContent = today.toLocaleDateString('nl', { weekday: 'short', day: 'numeric', month: 'short' });
+
+  // Hour ticks
+  for (let h = DAG_START; h <= DAG_END; h++) {
+    const pct = dagPos(h);
+    const tick = document.createElement('div');
+    tick.className = 'dag-hour-tick';
+    tick.style.left = pct + '%';
+    track.appendChild(tick);
+    // Labels every 3 hours
+    if ((h % 3 === 0) && h !== DAG_START && h !== DAG_END) {
+      const lbl = document.createElement('div');
+      lbl.className = 'dag-hour-label';
+      lbl.style.left = pct + '%';
+      lbl.textContent = h >= 24 ? `${h-24}:00` : `${h}:00`;
+      track.appendChild(lbl);
+    }
+  }
+
+  // Events
+  const state = getDagState();
+  DAG_EVENTS.forEach(ev => {
+    const el = document.createElement('div');
+    el.className = 'dag-event' + (state.done[ev.id] ? ' done' : '');
+    el.style.left = dagPos(ev.hour) + '%';
+    el.setAttribute('data-ev-id', ev.id);
+    el.textContent = ev.emoji;
+
+    const tip = document.createElement('div');
+    tip.className = 'dag-tip';
+    const hDisplay = ev.hour >= 24 ? `${ev.hour-24}:00` : (Number.isInteger(ev.hour) ? `${ev.hour}:00` : `${Math.floor(ev.hour)}:30`);
+    tip.textContent = `${ev.label} (${hDisplay})`;
+    el.appendChild(tip);
+
+    el.addEventListener('click', () => {
+      const s = getDagState();
+      s.done[ev.id] = !s.done[ev.id];
+      saveDagState(s);
+      el.classList.toggle('done', s.done[ev.id]);
+      if (s.done[ev.id]) {
+        awardPoints({ priority: 2, impact: 2, effort: 1 }, el.getBoundingClientRect().left, el.getBoundingClientRect().top);
+      }
+    });
+
+    track.appendChild(el);
+  });
+
+  // Now marker
+  function updateNowMarker() {
+    const now = new Date();
+    const nowHour = now.getHours() + now.getMinutes() / 60;
+    const adjHour = nowHour < DAG_START ? nowHour + 24 : nowHour;
+    const pct = dagPos(adjHour);
+    let marker = document.getElementById('dag-now');
+    if (!marker) {
+      marker = document.createElement('div');
+      marker.id = 'dag-now';
+      marker.style.cssText = `position:absolute;top:-6px;width:2px;height:14px;background:#f59e0b;border-radius:1px;transform:translateX(-50%);z-index:5;pointer-events:none;`;
+      track.appendChild(marker);
+    }
+    if (adjHour >= DAG_START && adjHour <= DAG_END) {
+      marker.style.left = pct + '%';
+      marker.style.display = 'block';
+    } else {
+      marker.style.display = 'none';
+    }
+  }
+  updateNowMarker();
+  setInterval(updateNowMarker, 60000);
+}
+
+initDagritme();
 </script>
 </body>
 </html>
